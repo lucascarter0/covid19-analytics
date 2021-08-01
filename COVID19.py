@@ -12,7 +12,23 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 from countryinfo import CountryInfo
+
+import utils
+from covid_databases import JhuData
 plt.style.use('seaborn')
+
+# def load_us(self):
+#     return self.record(self.raw_data.groupby('date').sum())
+
+# def load_state(self, state):
+#     state = us_state_abbrev.get(state)
+#     df = self.raw_data
+#     df = df.loc[df.state == state].drop('state', axis=1)
+#     return self.record(df)
+
+# data['total_hospitalizations'] = data['hospitalizations_per_day'].sum()
+# data['icu_bed_utilization_per_day'] = df['adult_icu_bed_covid_utilization_numerator'].divide(df['adult_icu_bed_covid_utilization_denominator'])
+# data['icu_bed_utilization'] = data['icu_bed_utilization_per_day'].iloc[-1]
 
 
 
@@ -33,72 +49,6 @@ mpl.rcParams['xtick.major.size'] = 6
 mpl.rcParams['xtick.minor.size'] = 6
 mpl.rcParams['ytick.labelsize'] = 11
 mpl.rcParams['ytick.major.size'] = 0
-
-
-
-class JhuData():
-
-    __column_rename = {'Admin2': 'County',
-                       'Province_State': 'State',
-                       'Country_Region': 'Country',
-                       'Lat': 'Latitude',
-                       'Long_': 'Longitude'}
-
-    __global_column_drop = ['Lat', 'Long', 'Province/State']
-    __state_column_drop = ['UID', 'code3', 'FIPS', 'Latitude', 'Longitude']
-
-    def __init__(self):
-
-        self.__baseurl = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data'
-        self._timeseries_baseurl = join(self.__baseurl,
-                                        'csse_covid_19_time_series')
-        self._daily_report_baseurl = join(self.__baseurl,
-                                          'csse_covid_19_daily_reports_us')
-
-    def __county_index(self, data):
-        return data.County.str.cat(data.State, sep=', ')
-
-    def _load_global_url(self, url):
-        data = pd.read_csv(url, index_col=1)
-        data = data.drop(self.__global_column_drop, axis=1)
-        data = data.groupby('Country/Region').sum()
-        return data
-
-    def _load_us_url(self, url, groupby='county'):
-        data = pd.read_csv(url, index_col=1)
-        data = data.rename(columns=self.__column_rename)
-
-        data = data.set_index(self.__county_index(data))
-
-        if groupby.lower() == 'state':
-            data = data.groupby('State').sum()
-            data = data.drop(columns=self.__state_column_drop)
-
-        return data
-
-
-    def global_cases(self):
-        url = join(self._timeseries_baseurl,
-                   'time_series_covid19_confirmed_global.csv')
-        return self._load_global_url(url)
-
-
-    def global_fatalities(self):
-        url = join(self._timeseries_baseurl,
-                   'time_series_covid19_deaths_global.csv')
-        return self._load_global_url(url)
-
-
-    def us_cases(self, groupby='county'):
-        url = join(self._timeseries_baseurl,
-                   'time_series_covid19_confirmed_US.csv')
-        return self._load_us_url(url, groupby=groupby)
-
-
-    def us_fatalities(self, groupby='county'):
-        url = join(self._timeseries_baseurl,
-                   'time_series_covid19_deaths_US.csv')
-        return self._load_us_url(url, groupby=groupby)
 
 
 
@@ -194,6 +144,9 @@ class State(Container):
             data = data.drop('Population', axis=1)
         return data
 
+    def _load_healthcare_gov_data(self):
+        pass
+
 
 
 class County(Container):
@@ -267,25 +220,6 @@ def plot_series(data, rolling_average, label, ylabel, gca=None):
 
 
 
-G7_COUNTRIES = ['Japan', 'Canada', 'Germany', 'Italy',
-                'France', 'United Kingdom', 'US']
-
-
-EUROPEAN_UNION = ['Austria', 'Belgium', 'Bulgaria', 'Croatia', 'Cyprus',
-                  'Czech Republic', 'Denmark', 'Estonia', 'Finland', 'France',
-                  'Germany', 'Greece', 'Hungary', 'Ireland', 'Italy', 'Latvia',
-                  'Lithuania', 'Luxembourg', 'Malta', 'Netherlands', 'Poland',
-                  'Portugal', 'Romania', 'Slovakia', 'Slovenia', 'Spain',
-                  'Sweden']
-
-
-G20_COUNTRIES = ['Argentina', 'Australia', 'Brazil', 'Canada', 'China',
-                 'France', 'Germany', 'India', 'Indonesia', 'Italy', 'Japan',
-                 'Korea, South', 'Mexico', 'Russia', 'Saudi Arabia',
-                 'South Africa', 'Turkey', 'United Kingdom', 'US']
-
-
-
 def series_window(series, start=None, end=None):
     """ Trim series to start/end window."""
     if start:
@@ -356,4 +290,4 @@ def plot_compare(classes, datatype, figsize=(12, 5), start=None, end=None):
 
 
 # plot_compare([norway, sweden, uk], 'fatalities', figsize=(10, 5))
-plot_compare([Country(ii) for ii in G20_COUNTRIES], 'fatalities', figsize=(10, 5))
+plot_compare([Country(ii) for ii in utils.G7_COUNTRIES], 'fatalities', figsize=(10, 5))
