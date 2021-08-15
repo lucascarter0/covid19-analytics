@@ -30,8 +30,8 @@ class HealthGovData:
         return df
 
     def append_summary(self, df):
-
-        df['hospitalizations_per_day'] = df[self.__hospitalization_cols].sum(axis=1)
+        hospitalizations = df.reset_index().set_index(['state', 'date'])[self.__hospitalization_cols]
+        df['total_hospitalizations'] = hospitalizations.sum(axis=1).groupby('state').cumsum().values
         df['icu_bed_utilization'] = icu_utilization(df)
         return df
 
@@ -79,8 +79,12 @@ class JhuData():
                 drop = self.__state_column_drop
             data = data.drop(columns=drop)
 
-        data.columns = pd.to_datetime(data.columns)
-        data.columns.name = 'date'
+        # Convert dates to datetime format if columns are only dates
+        try:
+            data.columns = pd.to_datetime(data.columns)
+            data.columns.name = 'date'
+        except:
+            pass
         data.index.name = groupby
 
         return data
@@ -110,6 +114,12 @@ class JhuData():
         to_drop = self.__state_column_drop.append('Population')
         return self._load_us_url(url, groupby=groupby, drop=to_drop)
 
+    def us_population(self, groupby='county'):
+        url = join(self._timeseries_baseurl,
+                   'time_series_covid19_deaths_US.csv')
+        df = self._load_us_url(url, groupby=groupby)
+        return df['Population']
+
 
 def icu_utilization(df):
     numerator = df['adult_icu_bed_covid_utilization_numerator']
@@ -132,7 +142,7 @@ def combine_databases(hospital_data, jhu_cases, jhu_deaths):
     return combined
 
 
-def update_us_csv():
+def update_us_csv(save=True):
 
     a = HealthGovData().load()
     df1 = JhuData().us_cases(groupby='state')
@@ -140,4 +150,5 @@ def update_us_csv():
 
     df = combine_databases(a, df1, df2)
     df = df.set_index('date')
-    df.to_csv('us_combined_covid_data.csv')
+    if save:
+        df.to_csv('us_combined_covid_data.csv')

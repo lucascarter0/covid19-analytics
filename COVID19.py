@@ -5,7 +5,6 @@ Created on Fri Feb 26 10:16:52 2021
 @author: lucas
 """
 
-from posixpath import join
 
 import pandas as pd
 import matplotlib as mpl
@@ -110,6 +109,21 @@ class Container():
         plot_series(data, rolling_average, label, ylabel, gca)
 
 
+    def dailyhospitalizationplot(self, per_capita=False, gca=None, label=None):
+        if label is None:
+            label = self.name
+        data = self.hospitalizations_series
+        rolling_average = self.hospitalizations_per_day
+        ylabel = 'Hospitalizations per Day'
+        if per_capita:
+            data = normalize(data, self.population)
+            rolling_average = normalize(rolling_average, self.population)
+            ylabel = 'Daily Hospitalizations per Million Residents'
+
+        plot_series(data, rolling_average, label, ylabel, gca)
+
+
+
 class Country(Container):
 
     def __init__(self, name, window=7):
@@ -131,21 +145,19 @@ class State(Container):
     def __init__(self, name, window=7):
         super().__init__(name, window)
 
-        all_data = JhuData()
-        self._record(self._load(all_data.us_cases(groupby='state')), 'cases')
-        data = self.getpopulation(all_data.us_fatalities(groupby='state'))
-        self._record(self._load(data), 'fatalities')
+        self.record_data()
+        self.population = JhuData().us_population(groupby='state').loc[self.name]
 
         self.get_params()
 
-    def getpopulation(self, data):
-        if 'Population' in data.columns:
-            self.population = data.loc[self.name, 'Population']
-            data = data.drop('Population', axis=1)
-        return data
+    def record_data(self):
+        all_data = pd.read_csv('https://raw.githubusercontent.com/lucascarter0/covid19-analytics/master/us_combined_covid_data.csv')
+        all_data = all_data.set_index(['state', 'date'])
+        self._record(self._load(all_data['total_cases']), 'cases')
+        self._record(self._load(all_data['total_deaths']), 'fatalities')
+        self._record(self._load(all_data['total_hospitalizations']), 'hospitalizations')
 
-    def _load_healthcare_gov_data(self):
-        pass
+
 
 
 
@@ -254,6 +266,9 @@ def plot_compare(classes, datatype, figsize=(12, 5), start=None, end=None):
     elif datatype.lower() == 'case fatality':
         attr = 'case_fatality_series'
         ylabel = 'Case Fatality'
+    elif datatype.lower() == 'hospitalizations':
+        attr = 'hospitalizations_per_day'
+        ylabel = 'Daily Hospitalizations per Million Residents'
     else:
         raise TypeError('Datatype {} not supported for comparison'.format(datatype))
 
@@ -290,4 +305,5 @@ def plot_compare(classes, datatype, figsize=(12, 5), start=None, end=None):
 
 
 # plot_compare([norway, sweden, uk], 'fatalities', figsize=(10, 5))
-plot_compare([Country(ii) for ii in utils.G7_COUNTRIES], 'fatalities', figsize=(10, 5))
+# plot_compare([Country(ii) for ii in utils.G7_COUNTRIES], 'fatalities', figsize=(10, 5))
+plot_compare([State(ii) for ii in ['Alabama', 'Texas', 'Florida', 'Massachusetts']], 'hospitalizations', figsize=(10, 5))
