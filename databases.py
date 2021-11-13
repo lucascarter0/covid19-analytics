@@ -88,9 +88,12 @@ class JhuData():
             data = data.groupby('State').sum()
             if drop is None:
                 drop = self.__state_column_drop
-            for column in drop:
-                if column in data.columns:
-                    data = data.drop(columns=drop)
+            #TODO: Make sure this works as intended vs what's commented out
+            to_drop = [column for column in drop if column in data.columns]
+            data = data.drop(columns=to_drop)
+            # for column in drop:
+            #     if column in data.columns:
+            #         data = data.drop(columns=drop)
 
         # Convert dates to datetime format if columns are only dates
         try:
@@ -153,7 +156,8 @@ def summarize_hospitalizations(df):
     hospitalization_cols = ['previous_day_admission_adult_covid_confirmed',
                             'previous_day_admission_pediatric_covid_confirmed']
     hospitalizations = df.reset_index().set_index(['state', 'date'])[hospitalization_cols]
-    df['total_hospitalizations'] = hospitalizations.sum(axis=1).groupby('state').cumsum().values
+    groupby_state = hospitalizations.sum(axis=1).groupby('state')
+    df['total_hospitalizations'] = groupby_state.cumsum().values
     df['icu_bed_utilization'] = icu_utilization(df)
     return df
 

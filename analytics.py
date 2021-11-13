@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Fri Feb 26 10:16:52 2021
 
-@author: lucas
-"""
 
 import pandas as pd
+import numpy as np
+from pathlib import Path
 import matplotlib.pyplot as plt
 
 from countryinfo import CountryInfo
@@ -35,11 +33,11 @@ class Container():
 
 
     def get_params(self):
-        self.load_fatality_rate()
+        self.calculate_fatality_rate()
         self.first_record, self.last_record = self.cases_series.index[[0, -1]]
 
 
-    def load_fatality_rate(self):
+    def calculate_fatality_rate(self):
         """ Calculate case fatality as a function of confirmed cases
         and fatality time series data."""
         self.case_fatality_series = self.fatalities_series.divide(self.cases_series)
@@ -47,45 +45,63 @@ class Container():
 
 
     def dailycaseplot(self, per_capita=False, gca=None, label=None):
+        ''' Summary plot of confirmed cases per day. Plots bar plot of raw data
+        behind a rolling average. Rolling average window and date range
+        of data during class instantiation.
+        
+        Arguments:
+            per_capita: Plot data per 100k residents
+            gca: Existing matplotlib axes to plot two (optional)
+            label: Custom label for data legend. Uses name attribute by default
+        '''
         if label is None:
             label = self.name
         data = self.cases_series
         rolling_average = self.cases_per_day
         ylabel = 'Cases per Day'
-        if per_capita:
-            data = normalize(data, self.population)
-            rolling_average = normalize(rolling_average, self.population)
-            ylabel = 'Daily Cases per Million Residents'
 
-        plots.plot_series(data, rolling_average, label, ylabel, gca)
+        plotter = plots.DailyPlotter(gca, label, ylabel)
+        plotter.summary_plot(data, rolling_average, per_capita, self.population)
 
 
     def dailyfatalityplot(self, per_capita=False, gca=None, label=None):
+        ''' Summary plot of COVID-19 deaths per day. Plots bar plot of raw data
+        behind a rolling average. Rolling average window and date range
+        of data during class instantiation.
+        
+        Arguments:
+            per_capita: Plot data per 100k residents
+            gca: Existing matplotlib axes to plot two (optional)
+            label: Custom label for data legend. Uses name attribute by default
+        '''
         if label is None:
             label = self.name
         data = self.fatalities_series
         rolling_average = self.fatalities_per_day
         ylabel = 'Fatalities per Day'
-        if per_capita:
-            data = normalize(data, self.population)
-            rolling_average = normalize(rolling_average, self.population)
-            ylabel = 'Daily Deaths per Million Residents'
 
-        plots.plot_series(data, rolling_average, label, ylabel, gca)
+        plotter = plots.DailyPlotter(gca, label, ylabel)
+        plotter.summary_plot(data, rolling_average, per_capita, self.population)
 
 
     def dailyhospitalizationplot(self, per_capita=False, gca=None, label=None):
+        ''' Summary plot of daily VOVID-19 hospitalizations. Plots bar plot of
+        raw data behind a rolling average. Rolling average window and date range
+        of data during class instantiation.
+        
+        Arguments:
+            per_capita: Plot data per 100k residents
+            gca: Existing matplotlib axes to plot two (optional)
+            label: Custom label for data legend. Uses name attribute by default
+        '''
         if label is None:
             label = self.name
         data = self.hospitalizations_series
         rolling_average = self.hospitalizations_per_day
         ylabel = 'Hospitalizations per Day'
-        if per_capita:
-            data = normalize(data, self.population)
-            rolling_average = normalize(rolling_average, self.population)
-            ylabel = 'Daily Hospitalizations per Million Residents'
 
-        plots.plot_series(data, rolling_average, label, ylabel, gca)
+        plotter = plots.DailyPlotter(gca, label, ylabel)
+        plotter.summary_plot(data, rolling_average, per_capita, self.population)
 
 
 
@@ -111,20 +127,45 @@ class State(Container):
         super().__init__(name, window)
 
         self.record_data()
-        self.population = JhuData().us_population(groupby='state').loc[self.name]
-
+        #TODO: Clean up exception handling
+        try:
+            self.population = JhuData().us_population(groupby='state').loc[self.name]
+        except:
+            self.population = np.nan
         self.get_params()
 
+
     def record_data(self):
-        all_data = pd.read_csv('https://raw.githubusercontent.com/lucascarter0/covid19-analytics/master/us_combined_covid_data.csv')
+        ''' Load raw data from combined covid data in Github repo
+        or in local repo.
+
+        Attributes that are recorded:
+            positive cases
+            fatalities
+            hospitalizations
+            percentage of population fully vaccinated
+            percentage of population receiving at least partial dose
+        '''
+
+        #TODO: Needs capability to load from database module directly without csv dependency
+        try:
+            url = Path('https://raw.githubusercontent.com/lucascarter0')
+            url = url.joinpath('covid19-analytics/master/us_combined_covid_data.csv')
+            all_data = pd.read_csv(url)
+        except:
+            all_data = pd.read_csv('us_combined_covid_data.csv')
         all_data = all_data.set_index(['state', 'date'])
-        self._record(self._load(all_data['total_cases']), 'cases')
-        self._record(self._load(all_data['total_deaths']), 'fatalities')
-        self._record(self._load(all_data['total_hospitalizations']), 'hospitalizations')
-        self._record(self._load(all_data['series_complete_yes']), 'fully_vaccinated')
-        self._record(self._load(all_data['administered_dose1_recip']), 'partial_plus_vaccinated')
 
-
+        self._record(self._load(all_data['total_cases']),
+                     attrname='cases')
+        self._record(self._load(all_data['total_deaths']),
+                     attrname='fatalities')
+        self._record(self._load(all_data['total_hospitalizations']),
+                     attrname='hospitalizations')
+        self._record(self._load(all_data['series_complete_yes']),
+                     attrname='fully_vaccinated')
+        self._record(self._load(all_data['administered_dose1_recip']),
+                     attrname='partial_plus_vaccinated')
 
 
 
